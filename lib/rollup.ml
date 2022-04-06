@@ -1,19 +1,23 @@
 module Rollup = struct
-  module Ledger = Map.Make(String)
-  let default_balance = 0
-  type context = {
-    ledgers : int Ledger.t;
-    id : int;
-    txs : (string * int * string) list
+  type ledger = (string, int) Hashtbl.t
+  type transaction = {
+    sender : string;
+    amount : int;
+    receiver : string
   }
-  let make =
+  type context = {
+    ledger : ledger;
+    id : int;
+    txs : transaction list
+  }
+  let create =
     let cnt = ref 0 in
     fun () -> 
-      let ledgers = Ledger.add "genesis_ledger" default_balance Ledger.empty in
+      let ledger = Hashtbl.create 50 in
       let id = !cnt in
-      let txs = ["genesis",0,"genesis"] in
+      let txs = [] in
       incr cnt;
-      {ledgers=ledgers;id=id;txs=txs}
+      {ledger=ledger;id=id;txs=txs}
 
-  let get_id {ledgers = _;id=id;txs = _} = id
+  let get_id {ledger = _;id=id;txs = _} = id
 end
