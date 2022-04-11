@@ -13,6 +13,8 @@ let default_balance = 500
 let ledger_l1 = Hashtbl.create 50
 let rollups = Hashtbl.create 50
 
+(**let sequencers = Hashtbl.create 50**)
+
 exception Ledger_not_found
 exception Rollup_not_found
 exception Insufficient_balance
@@ -47,13 +49,35 @@ type put_object = {
   receiver : string;
 } [@@deriving yojson]
 
+type registration_object = {
+  sequencer_identity : string;
+  sequencer_port : int;
+} [@@deriving yojson]
+
 
 let _ =
   Arg.parse spec_list (fun _ -> ()) usage;
   log "Server started on ..%i" !port;
-  Dream.run ~port:!port
+  Dream.run ~port:!port ~interface:"0.0.0.0"
   @@ Dream.logger
   @@ Dream.router [
+    Dream.get "/registration" (fun _ -> Dream.html "REGISTRATION EFFECTUÉE\n")
+      (**(fun request ->
+        let%lwt body = Dream.body request in
+        let registration_object =
+          body |> Yojson.Basic.from_string
+        in
+
+        let open Yojson.Basic.Util in
+        let _ = registration_object |> member "identity" |> to_string in
+        let _ = registration_object |> member "port" |> to_int in
+        (**si le rollup existe**)
+          (**si le sequenceur est deja enregistrer -> print**)
+          (**sinon, on l'enregistre dans la hashtbl des sequenceur -> (port, rollup a monitorer) + print de reussite**)
+        Dream.html ""
+
+      )**)
+    ;
     Dream.post "/ledger/new"
       (fun request ->
         let%lwt body = Dream.body request in
