@@ -3,12 +3,12 @@ open Rollup
 let port = ref 8080
 
 (*gestion des options/arguments pour lancer le serveur*)
-let spec_list = ["-port", Arg.Set_int port, "Specify the port of the server, 8000 by default"]
+let spec_list = ["-port", Arg.Set_int port, "Specify the port of the server, 8080 by default"]
 let anon_fun p = port := int_of_string p
 let usage = "server [-port]"
 
 
-(*Layer 1 *)
+(* LAYER 1 STUFF *)
 let default_balance = 500
 let ledger_l1 = Hashtbl.create 50
 let rollups = Hashtbl.create 50
@@ -49,19 +49,19 @@ type put_object = {
 
 
 let _ =
-  Arg.parse spec_list anon_fun usage;
+  Arg.parse spec_list (fun _ -> ()) usage;
   log "Server started on ..%i" !port;
-  Dream.run
+  Dream.run ~port:!port
   @@ Dream.logger
   @@ Dream.router [
-    Dream.post "/ledger/new" 
+    Dream.post "/ledger/new"
       (fun request ->
         let%lwt body = Dream.body request in
         if Hashtbl.mem ledger_l1 body then
-          Dream.html (Printf.sprintf "%s's already exist" body)
+          Dream.html (Printf.sprintf "%s's entry in the ledger already exist" body)
         else
           (Hashtbl.add ledger_l1 body default_balance;
-          Dream.html (Printf.sprintf "%s's created with a balance of : %i" body default_balance)))
+          Dream.html (Printf.sprintf "%s's entry in the ledger created with a balance of : %i" body default_balance)))
     ;
     Dream.post "/rollup/new"
       (fun _ ->
@@ -97,7 +97,7 @@ let _ =
                   Dream.html (Printf.sprintf "%s's wallet created on the rollup %i with a balance of : %i" identity rollup_id amount)
                 | _ -> Dream.html (Printf.sprintf "%itz added to the %s's wallet in the rollup : %i" amount identity rollup_id)
         else
-          Dream.html "bad rollup_id, this rollup doesn't exist")
+          Dream.html (Printf.sprintf "This rollup doesn't exist"))
     ;
     Dream.post "rollup/put"
       (fun request ->
@@ -127,18 +127,18 @@ let _ =
                   Dream.html (Printf.sprintf "%s's doesn't have money on this rollup, fund first please" receiver)
                 | _ -> Dream.html (Printf.sprintf "transaction done, sender : %s, amount : %itz receiver : %s, in the rollup : %i" sender amount receiver rollup_id)
         else
-          Dream.html "bad rollup_id, this rollup doesn't exist")
+          Dream.html (Printf.sprintf "This rollup doesn't exist"))
     ;
     Dream.get "/ledger/:identity"
       (fun request ->
         let id = Dream.param request "identity" in
         if Hashtbl.mem ledger_l1 id then
-          Dream.html (Printf.sprintf "Balance de %s : %i" id (Hashtbl.find ledger_l1 id))
+          Dream.html (Printf.sprintf "Balance of %s : %i" id (Hashtbl.find ledger_l1 id))
         else
-          Dream.html (Printf.sprintf "Aucun ledger n'est associé a %s" id)
+          Dream.html (Printf.sprintf "%s's has no entry in the ledger" id)
         )
     ;
-    Dream.get "/rollup/:id/:identity"
+    Dream.get "/rollup/:id/ledger/:identity"
       (fun request ->
         let rollup_id = Dream.param request "id" |> int_of_string in
         let identity = Dream.param request "identity" in
@@ -151,5 +151,29 @@ let _ =
           else
             Dream.html (Printf.sprintf "Aucun ledger n'est associé a %s" identity)
         else
-          Dream.html "bad rollup_id, this rollup doesn't exist")
+          Dream.html (Printf.sprintf "This rollup doesn't exist"))
+    ;
+    Dream.get "/rollup/:rollup_id/level"
+      (fun request ->
+        let rollup_id = Dream.param request "rollup_id" |> int_of_string in
+        if Hashtbl.mem rollups rollup_id then
+          let level = Rollup.get_current_level (Hashtbl.find rollups rollup_id) in
+          Dream.html (Printf.sprintf "Rollup %i current level : %i" rollup_id level)
+        else
+          Dream.html (Printf.sprintf "This rollup doesn't exist")
+      )
+    ;
+    Dream.get "/rollup/:rollup_id/participants"
+    (fun request ->
+      let rollup_id = Dream.param request "rollup_id" |> int_of_string in
+      if Hashtbl.mem rollups rollup_id then
+        let rollup = Hashtbl.find rollups rollup_id in
+        let participants = Rollup.get_participants rollup in
+        let n = Rollup.get_nb_participants rollup in
+        let buff = Buffer.create (n*2) in
+        Seq.iter (fun name -> Buffer.add_string buff name; Buffer.add_char buff '\n') participants;
+        Dream.html (Printf.sprintf "Participant in the rollup %i : \n%s" rollup_id (Buffer.contents buff))
+      else
+        Dream.html (Printf.sprintf "This rollup doesn't exist")
+    )
   ]

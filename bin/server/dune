@@ -1,4 +1,4 @@
-(executable
- (name main)
- (libraries dream rollup)
+(executables
+ (names rollup_server sequencer_server test_cohttp)
+ (libraries dream rollup cohttp-lwt-unix)
  (preprocess (pps lwt_ppx ppx_yojson_conv)))
