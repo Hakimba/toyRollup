@@ -12,8 +12,7 @@ let usage = "server [-port]"
 let default_balance = 500
 let ledger_l1 = Hashtbl.create 50
 let rollups = Hashtbl.create 50
-
-(**let sequencers = Hashtbl.create 50**)
+let sequencers = Hashtbl.create 50
 
 exception Ledger_not_found
 exception Rollup_not_found
@@ -34,7 +33,7 @@ let withdraw ledger account amount =
       raise Insufficient_balance
   else
     raise Ledger_not_found
-(**)
+(*FIN LAYER1 STUFF*)
 
 type fund_object = {
   rollup_id_fund : int;
@@ -52,6 +51,7 @@ type put_object = {
 type registration_object = {
   sequencer_identity : string;
   sequencer_port : int;
+  targeted_rollup : int;
 } [@@deriving yojson]
 
 
@@ -61,22 +61,27 @@ let _ =
   Dream.run ~port:!port ~interface:"0.0.0.0"
   @@ Dream.logger
   @@ Dream.router [
-    Dream.get "/registration" (fun _ -> Dream.html "REGISTRATION EFFECTUÉE\n")
-      (**(fun request ->
+    Dream.post "/registration"
+      (fun request ->
         let%lwt body = Dream.body request in
         let registration_object =
           body |> Yojson.Basic.from_string
         in
 
         let open Yojson.Basic.Util in
-        let _ = registration_object |> member "identity" |> to_string in
-        let _ = registration_object |> member "port" |> to_int in
-        (**si le rollup existe**)
-          (**si le sequenceur est deja enregistrer -> print**)
-          (**sinon, on l'enregistre dans la hashtbl des sequenceur -> (port, rollup a monitorer) + print de reussite**)
-        Dream.html ""
-
-      )**)
+        let name_sequencer = registration_object |> member "sequencer_identity" |> to_string in
+        let port_sequencer = registration_object |> member "sequencer_port" |> to_int in
+        let rollup_id = registration_object |> member "targeted_rollup" |> to_int in
+        if Hashtbl.mem rollups rollup_id then
+          if Hashtbl.mem sequencers name_sequencer then
+            (*peut etre paramétré les messages de réponse aussi*)
+            Dream.html (Printf.sprintf "Séquenceur déja enregistré : %s, affecté au rollup : %i, sur le port: %i" name_sequencer rollup_id port_sequencer)
+          else (
+            Hashtbl.add sequencers name_sequencer (port_sequencer,rollup_id);
+            Dream.html (Printf.sprintf "Séquenceur %s, port %i enregistré et affecté au rollup %i" name_sequencer port_sequencer rollup_id))
+        else
+          Dream.html (Printf.sprintf "This rollup doesn't exist")
+      )
     ;
     Dream.post "/ledger/new"
       (fun request ->
@@ -199,5 +204,13 @@ let _ =
         Dream.html (Printf.sprintf "Participant in the rollup %i : \n%s" rollup_id (Buffer.contents buff))
       else
         Dream.html (Printf.sprintf "This rollup doesn't exist")
+    )
+    ;
+    Dream.get "/sequencers"
+    (fun _ ->
+      let iterator = fun name (port,rollup_id) agreg -> 
+        let str = Printf.sprintf "Séquenceur : %s, port : %i, rollup monitoré : %i" name port rollup_id in
+        str ^ agreg in 
+      Dream.html ( Hashtbl.fold iterator sequencers "")
     )
   ]
