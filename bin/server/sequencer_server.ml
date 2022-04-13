@@ -1,7 +1,6 @@
 open Dream
 open Lwt
 open Cohttp_lwt_unix
-
 let port = ref 8000
 let identity = ref ""
 let rollup_id = ref 0 
@@ -32,6 +31,7 @@ let registration () =
 
 let _ =
   Arg.parse spec_list (fun _ -> ()) usage;
+
   log "Sequencer started on %i" !port;
   let _ = Dream.log "%s\n" (registration ()) in
   Dream.run ~port:!port
