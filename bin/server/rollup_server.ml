@@ -1,5 +1,5 @@
 open Dream
-open Rollup
+open Rlp.Rollup
 let port = ref 8080
 
 (*gestion des options/arguments pour lancer le serveur*)
@@ -74,7 +74,6 @@ let _ =
         let rollup_id = registration_object |> member "targeted_rollup" |> to_int in
         if Hashtbl.mem rollups rollup_id then
           if Hashtbl.mem sequencers name_sequencer then
-            (*peut etre paramétré les messages de réponse aussi*)
             Dream.html (Printf.sprintf "Séquenceur déja enregistré : %s, affecté au rollup : %i, sur le port: %i" name_sequencer rollup_id port_sequencer)
           else (
             Hashtbl.add sequencers name_sequencer (port_sequencer,rollup_id);
@@ -99,7 +98,7 @@ let _ =
         Hashtbl.add rollups new_rollup_id new_rollup;
         Dream.html (Printf.sprintf "New rollup context initialized, rollup_id : %i" new_rollup_id))
     ;
-    Dream.post "rollup/fund"
+    Dream.post "/rollup/fund"
       (fun request ->
         let%lwt body = Dream.body request in
         let fund_object =
@@ -128,7 +127,7 @@ let _ =
         else
           Dream.html (Printf.sprintf "This rollup doesn't exist"))
     ;
-    Dream.post "rollup/put"
+    Dream.post "/rollup/put"
       (fun request ->
         let%lwt body = Dream.body request in
         let put_object =
@@ -187,7 +186,7 @@ let _ =
         let rollup_id = Dream.param request "rollup_id" |> int_of_string in
         if Hashtbl.mem rollups rollup_id then
           let level = Rollup.get_current_level (Hashtbl.find rollups rollup_id) in
-          Dream.html (Printf.sprintf "Rollup %i current level : %i" rollup_id level)
+          Dream.html (Printf.sprintf "%i" level)
         else
           Dream.html (Printf.sprintf "This rollup doesn't exist")
       )

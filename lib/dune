@@ -1,2 +1,4 @@
 (library
- (name rollup))
+ (name rlp)
+ (libraries sha)
+ (preprocess (pps ppx_yojson_conv)))
