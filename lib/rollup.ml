@@ -1,7 +1,7 @@
 open Merkle
 module Rollup = struct
   type ledger = (string, int) Hashtbl.t
-
+  
   module LedgerCtx = struct
     type data = (string * int)
     type digest = Sha256.t

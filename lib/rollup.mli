@@ -1,6 +1,10 @@
 module Rollup :
   sig
     type ledger = (string, int) Hashtbl.t
+
+    (**
+      This module is the context needed by the MerkleTree functor, provide the hash library    
+    **)
     module LedgerCtx :
       sig
         type data = string * int
@@ -39,5 +43,7 @@ module Rollup :
     val get_current_level : context -> int
     val get_participants : context -> string Seq.t
     val get_nb_participants : context -> int
+
+    (**[get_state context] merklization of the ledger contained in a rollup**)
     val get_state : context -> LedgerMerkleTree.t
   end

@@ -8,6 +8,8 @@ let identity = ref ""
 let rollup_id = ref 0 
 
 (*by default*)
+
+(*on stocke la transaction et le niveau courant dans un couple, pour pouvoir filtrer sur le niveau quand on feras un batch*)
 let txs_storage = ref (TxsStorage.add ({sender="genesis";amount=0;receiver="genesis"},0) (TxsStorage.create))
 module Sqc = Sequencer(TxsStorage)
 let sequencer_setting = Sqc.make identity port rollup_id
@@ -29,7 +31,7 @@ let registration_body identity port rollup =
 
 let basic_response ctx =
   let (resp,body) = ctx in
-  let _ = resp |> Response.status in 
+  let _ = resp |> Response.status in
   body |> Cohttp_lwt.Body.to_string
 
 let registration () =
@@ -43,11 +45,6 @@ let _ =
   Dream.run ~port:!port ~interface:"0.0.0.0"
   @@ Dream.logger
   @@ Dream.router [
-    Dream.get "/sequencer"
-      (fun _ ->
-        Dream.html "sequencer"
-      )
-    ;
     Dream.post "/sequencer/transaction"
     (fun request ->
       let%lwt body = Dream.body request in
@@ -59,14 +56,45 @@ let _ =
       let sender = transaction_object |> member "sender" |> to_string in
       let amount = transaction_object |> member "amount" |> to_int in
       let receiver = transaction_object |> member "receiver" |> to_string in
+      let associated_rollup = Sqc.get_associated_rollup sequencer_setting in
 
-      (*
-         si le sender et le receiver existent dans le rollup attaché
-         a ce sequencer et si le sender a une balance suffisante
-         alors envoyer la transaction au serveur du rollup et
-         enregistrer cette transaction dans notre txs_storage*)
+      (*pour les appels aux endpoints qui permettent de verifier l'existence du sender/receiver, et la balance du sender*)
+      let url_sender = Printf.sprintf "http://localhost:8080/rollup/%i/%s" associated_rollup sender in
+      let url_receiver = Printf.sprintf "http://localhost:8080/rollup/%i/%s" associated_rollup receiver in
+      let url_balance_sender = 
+        (Printf.sprintf "http://localhost:8080/rollup/%i/balance/%s" 
+        associated_rollup sender) in
+      
+      (*pour l'appel a l'endpoint d'envoie de transaction au serveur rollup*)
+      let url_send_tx = "http://localhost:8080/rollup/put" in
+      let body_send_tx = 
+        Printf.sprintf {|{"rollup_id_put" : "%i", "sender" : %s, "amount" : %i, "receiver":%s}|} associated_rollup sender amount receiver in
 
-      Dream.html (Printf.sprintf "%s %i %s" sender amount receiver)
+      let url_get_level = Printf.sprintf "http://localhost:8080/rollup/%i/level" associated_rollup in
+
+      let%lwt body_s = get_request url_sender basic_response in
+      let%lwt body_r = get_request url_receiver basic_response in
+      let exist_s = bool_of_string body_s in
+      let exist_r = bool_of_string body_r in
+
+      if exist_s && exist_r then
+        let%lwt balance = get_request url_balance_sender basic_response in
+        let%lwt level = get_request url_get_level basic_response in
+        let balance = int_of_string balance in
+        let level = int_of_string level in
+        if balance >= amount then
+          (*la partie sequenceur, on enregistre la transaction*)
+          let tx = make_transaction sender amount receiver in
+          txs_storage := Sqc.add_transaction (tx,level) !txs_storage;
+
+          (*la partie rollup, on envoie la transaction au serveur rollup en utilisant l'endpoint adequat et on renvoie
+             la reponse de l'endpoint*)
+          let%lwt body_send_tx = post_request url_send_tx basic_response body_send_tx in
+          Dream.html body_send_tx
+        else
+          Dream.html (Printf.sprintf "%s's balance not enough" sender)
+      else
+        Dream.html (Printf.sprintf "both sender and receiver have to be participant on rollup %i" (Sqc.get_associated_rollup sequencer_setting))
     )
     ;
     Dream.get "/sequencer/batch"

@@ -157,7 +157,7 @@ let _ =
         else
           Dream.html (Printf.sprintf "This rollup doesn't exist"))
     ;
-    Dream.get "/ledger/:identity"
+    Dream.get "/ledger/balance/:identity"
       (fun request ->
         let id = Dream.param request "identity" in
         if Hashtbl.mem ledger_l1 id then
@@ -166,7 +166,7 @@ let _ =
           Dream.html (Printf.sprintf "%s's has no entry in the ledger" id)
         )
     ;
-    Dream.get "/rollup/:id/ledger/:identity"
+    Dream.get "/rollup/:id/balance/:identity"
       (fun request ->
         let rollup_id = Dream.param request "id" |> int_of_string in
         let identity = Dream.param request "identity" in
@@ -175,11 +175,27 @@ let _ =
           let curr_rollup_ledger = curr_rollup.ledger in
           if Hashtbl.mem curr_rollup_ledger identity then
             let balance = Hashtbl.find curr_rollup_ledger identity in
-            Dream.html ((Printf.sprintf "Balance de %s : %i") identity balance)
+            Dream.html ((Printf.sprintf "%i") balance)
           else
             Dream.html (Printf.sprintf "Aucun ledger n'est associé a %s" identity)
         else
           Dream.html (Printf.sprintf "This rollup doesn't exist"))
+    ;
+
+    (*juste pour verifier si l'utilisateur existe dans ce rollup*)
+    Dream.get "/rollup/:id/:identity"
+    (fun request ->
+      let rollup_id = Dream.param request "id" |> int_of_string in
+      let identity = Dream.param request "identity" in
+      if Hashtbl.mem rollups rollup_id then
+        let curr_rollup = Hashtbl.find rollups rollup_id in
+        let curr_rollup_ledger = curr_rollup.ledger in
+        Dream.html (Printf.sprintf "%b" (Hashtbl.mem curr_rollup_ledger identity))
+      else
+        (*ça devrais pas arriver si on appel ce endpoint uniquement via un sequenceur, parce que
+           le sequenceur est lancé en se rattachant a un rollup forcément existant*)
+        Dream.html (Printf.sprintf "rollup doesn't exist")
+    )
     ;
     Dream.get "/rollup/:rollup_id/level"
       (fun request ->
